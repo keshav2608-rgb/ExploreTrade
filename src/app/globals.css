@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Calm fintech defaults (SRS §8.1). Light theme only in this release. */
+@layer base {
+  html {
+    @apply bg-canvas text-ink antialiased;
+  }
+  body {
+    @apply min-h-screen font-sans text-[15px] leading-6;
+  }
+  h1 { @apply text-2xl font-semibold tracking-tight; }
+  h2 { @apply text-lg font-semibold; }
+  h3 { @apply text-base font-semibold; }
+  a { @apply text-brand-600 underline-offset-2 hover:underline; }
+  :focus-visible { @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white rounded; }
+  table { @apply w-full text-sm; }
+  th { @apply text-left font-medium text-ink-muted; }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+}
+
+@layer components {
+  .card { @apply rounded-card bg-white shadow-card border border-line; }
+  .card-pad { @apply p-5; }
+  .label { @apply block text-sm font-medium text-ink mb-1; }
+  .input { @apply block w-full rounded-lg border border-line bg-white px-3 py-2 text-[15px] placeholder:text-ink-faint focus:border-brand-500 disabled:bg-canvas; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed no-underline; }
+  .btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700 hover:no-underline; }
+  .btn-secondary { @apply btn bg-white text-ink border border-line hover:bg-canvas hover:no-underline; }
+  .btn-danger { @apply btn bg-white text-loss border border-loss/40 hover:bg-loss-soft hover:no-underline; }
+  .btn-ghost { @apply btn text-ink-muted hover:bg-canvas hover:text-ink hover:no-underline; }
+  .pill { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium; }
+  .gain { @apply text-gain; }
+  .loss { @apply text-loss; }
+  .table-wrap { @apply overflow-x-auto -mx-5 px-5; }
+  .table-wrap th, .table-wrap td { @apply py-2.5 pr-4 align-top whitespace-nowrap; }
+  .table-wrap tr + tr { @apply border-t border-line; }
+  .num { @apply tabular-nums; }
+}
