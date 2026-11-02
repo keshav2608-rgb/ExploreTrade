@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+.env
+.env.local
+*.db
+*.db-journal
+prisma/dev.db*
+prisma/test*.db*
+coverage
+*.log
+.DS_Store
+tsconfig.tsbuildinfo
+services/pulsefeed/target
