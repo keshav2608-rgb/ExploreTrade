@@ -1,0 +1,189 @@
+// PortfolioPulse data model (SRS §11).
+//
+// Default provider is SQLite so the project runs with no database server.
+// To use PostgreSQL (the recommended production option), change `provider`
+// to "postgresql", set DATABASE_URL, delete prisma/migrations and run
+// `npx prisma migrate dev --name init`. No model changes are needed.
+//
+// Money and quantities are `Decimal` columns, never floats (SRS §7.10).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users and credentials. Passwords are stored only as bcrypt hashes.
+// ---------------------------------------------------------------------------
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  displayName  String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  transactions  Transaction[]
+  watchlist     WatchlistItem[]
+  alerts        PriceAlert[]
+  notifications Notification[]
+  valuations    PortfolioValuation[]
+}
+
+// ---------------------------------------------------------------------------
+// Supported stocks. Seeded from prisma/seed.ts; users cannot create these.
+// ---------------------------------------------------------------------------
+model Instrument {
+  id                   String   @id @default(cuid())
+  symbol               String
+  companyName          String
+  exchange             String   // "NSE" or "BSE"
+  currency             String   @default("INR")
+  providerInstrumentId String?  // e.g. "RELIANCE.NS" for Yahoo Finance
+  sector               String?
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  transactions   Transaction[]
+  watchlistItems WatchlistItem[]
+  alerts         PriceAlert[]
+  quotes         QuoteSnapshot[]
+  history        HistoricalPrice[]
+
+  @@unique([exchange, symbol])
+  @@index([companyName])
+}
+
+// ---------------------------------------------------------------------------
+// A user's buy or sell. Everything the portfolio shows is derived from these.
+// ---------------------------------------------------------------------------
+model Transaction {
+  id            String   @id @default(cuid())
+  userId        String
+  instrumentId  String
+  type          String   // "BUY" | "SELL"
+  tradeDate     DateTime
+  quantity      Decimal
+  pricePerShare Decimal
+  charges       Decimal  @default(0)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instrument Instrument @relation(fields: [instrumentId], references: [id])
+
+  @@index([userId])
+  @@index([instrumentId])
+  @@index([tradeDate])
+}
+
+model WatchlistItem {
+  id           String   @id @default(cuid())
+  userId       String
+  instrumentId String
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instrument Instrument @relation(fields: [instrumentId], references: [id])
+
+  @@unique([userId, instrumentId])
+}
+
+// ---------------------------------------------------------------------------
+// Most recent quote per instrument. One row per instrument is kept current
+// (upserted); a failed refresh never overwrites it (FR-DATA-04).
+// ---------------------------------------------------------------------------
+model QuoteSnapshot {
+  id               String   @id @default(cuid())
+  instrumentId     String   @unique
+  price            Decimal
+  previousClose    Decimal?
+  dayChange        Decimal?
+  dayChangePercent Decimal?
+  volume           BigInt?
+  quoteTimestamp   DateTime // when the provider says the price was observed
+  fetchedAt        DateTime // when we retrieved it
+  provider         String
+  dataStatus       String   // LIVE | DELAYED | END_OF_DAY | CACHED | DEMO
+
+  instrument Instrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+}
+
+model HistoricalPrice {
+  id           String   @id @default(cuid())
+  instrumentId String
+  interval     String   // "1d"
+  timestamp    DateTime
+  open         Decimal?
+  high         Decimal?
+  low          Decimal?
+  close        Decimal
+  volume       BigInt?
+  provider     String
+
+  instrument Instrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+
+  @@unique([instrumentId, interval, timestamp, provider])
+}
+
+model PriceAlert {
+  id              String    @id @default(cuid())
+  userId          String
+  instrumentId    String
+  condition       String    // "ABOVE" | "BELOW"
+  thresholdPrice  Decimal
+  isEnabled       Boolean   @default(true)
+  // Set while the condition holds; cleared when the price crosses back.
+  // This is what stops the same alert firing on every check (FR-ALT-07).
+  isTriggered     Boolean   @default(false)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instrument    Instrument     @relation(fields: [instrumentId], references: [id])
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([instrumentId, isEnabled])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  alertId   String?
+  type      String   // "ALERT_TRIGGERED" | "SYSTEM"
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alert PriceAlert? @relation(fields: [alertId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+}
+
+// Optional daily snapshot of a user's portfolio, written by the worker, so
+// the dashboard can draw a performance chart (SRS §11.9).
+model PortfolioValuation {
+  id                 String   @id @default(cuid())
+  userId             String
+  valuationTimestamp DateTime
+  investedValue      Decimal
+  marketValue        Decimal
+  realizedPnl        Decimal
+  unrealizedPnl      Decimal
+  totalPnl           Decimal
+  quoteStatusSummary String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, valuationTimestamp])
+}
